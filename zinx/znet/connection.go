@@ -1,7 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"net"
 
 	"../ziface"
@@ -11,16 +13,16 @@ type Connection struct {
 	Conn     *net.TCPConn
 	ConnID   uint32
 	isClosed bool
-	Router ziface.IRouter
+	msgHandler ziface.IMsgHandle
 	ExitBuffChan chan bool
 }
 
-func NewConnection(conn *net.TCPConn, connID uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
 	c := &Connection{
 		Conn:         conn,
 		ConnID:       connID,
 		isClosed:     false,
-		Router:		router,
+		msgHandler: msgHandler,
 		ExitBuffChan: make(chan bool, 1),
 	}
 	return c
@@ -32,25 +34,41 @@ func (c *Connection) StartReader() {
 	defer c.Stop()
 
 	for {
-		buf := make([]byte, 512)
-		_, err := c.Conn.Read(buf)
-		if err != nil {
-			fmt.Println("recv buf err ", err)
+		dp := NewDataPack()
+		headData := make([]byte, dp.GetHeadLen())
+
+		if _, err := io.ReadFull(c.GetTCPConnection(), headData); err != nil {
+			fmt.Println("read msg head error ", err)
 			c.ExitBuffChan <- true
 			continue
 		}
+
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack error ", err)
+			c.ExitBuffChan <- true 
+			continue
+		}
+
+		var data []byte
+		if msg.GetDataLen() > 0 {
+			data  = make([]byte, msg.GetDataLen())
+			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
+				fmt.Println("read msg data error ", err)
+				c.ExitBuffChan <- true 
+				continue
+			}
+		}
+
+		msg.SetData(data)
 		
 		// 处理请求
 		req := Request{
 			conn: c,
-			data: buf,
+			msg: msg,
 		}
 
-		go func(request ziface.IRequest) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.PostHandle(request)
-		}(&req)
+		go c.msgHandler.DoMsgHandler(&req)
 	}
 }
 
@@ -84,4 +102,25 @@ func (c *Connection) GetConnID() uint32 {
 
 func (c *Connection) RemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
+}
+
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.isClosed == true {
+		return errors.New("Connection closed when send msg")
+	}
+
+	dp := NewDataPack()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return errors.New("Pack error msg")
+	}
+
+	if _, err := c.Conn.Write(msg); err != nil {
+		fmt.Println("Write msg id ", msgId, " error ")
+		c.ExitBuffChan <- true
+		return errors.New("conn Write error")
+	}
+	return nil
 }

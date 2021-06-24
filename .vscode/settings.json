@@ -1,4 +1,4 @@
 {
-	"go.inferGopath": true,
-	// "go.toolsGopath": "/Users/scallions/Workspace/learn/shiyanlou/go-zinx-webserver",
+	// "go.inferGopath": true,
+	// "go.gopath": "/Users/scallions/Workspace/learn/shiyanlou/go-zinx-webserver"
 }

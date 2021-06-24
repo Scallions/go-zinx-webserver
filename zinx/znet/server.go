@@ -6,30 +6,33 @@ import (
 	"net"
 	"time"
 
+	"../utils"
 	"../ziface"
 )
 
 type Server struct {
-	Name string
+	Name      string
 	IPVersion string
-	IP string
-	Port int
-	Router ziface.IRouter
+	IP        string
+	Port      int
+	msgHandler ziface.IMsgHandle
 }
 
-func NewServer(name string) ziface.IServer {
+func NewServer() ziface.IServer {
+	utils.GlobalObject.Reload()
 	s := &Server{
-		Name: name,
+		Name:      utils.GlobalObject.Name,
 		IPVersion: "tcp4",
-		IP: "0.0.0.0",
-		Port: 7777,
-		Router:  nil,
+		IP:        utils.GlobalObject.Host,
+		Port:      utils.GlobalObject.TcpPort,
+		msgHandler: NewMsgHandle(),
 	}
 	return s
 }
 
 func (s *Server) Start() {
 	fmt.Printf("[START] Server listenner at IP: %s, Port %d, is starting\n", s.IP, s.Port)
+	fmt.Println("[Zinx] Version: %s, MaxConn: %d, MaxPacketSize: %d\n", utils.GlobalObject.Version, utils.GlobalObject.MaxConn, utils.GlobalObject.MaxPacketSize)
 
 	go func() {
 		addr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
@@ -40,7 +43,7 @@ func (s *Server) Start() {
 		listenner, err := net.ListenTCP(s.IPVersion, addr)
 		if err != nil {
 			fmt.Println("listen", s.IPVersion, "err", err)
-			return 
+			return
 		}
 
 		fmt.Println("start Zinx server ", s.Name, " succ, now listenning...")
@@ -57,7 +60,7 @@ func (s *Server) Start() {
 
 			// TODO: 最大连接限制
 
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.msgHandler)
 			cid++
 			go dealConn.Start()
 		}
@@ -75,15 +78,13 @@ func (s *Server) Serve() {
 	// TODO: 处理其他事务
 
 	for {
-		time.Sleep(10*time.Second)
+		time.Sleep(10 * time.Second)
 	}
 }
 
-func (s *Server) AddRouter(router ziface.IRouter) {
-	s.Router = router
-	fmt.Println("Add Router succ! ")
+func (s *Server) AddRouter(msgId uint32, router ziface.IRouter) {
+	s.msgHandler.AddRouter(msgId, router)
 }
-
 
 // ========== 定义 handle api ===============
 // 回显
@@ -93,6 +94,5 @@ func CallBackToClient(conn *net.TCPConn, data []byte, cnt int) error {
 		fmt.Println("write back buf err ", err)
 		return errors.New("CallBackToClient error")
 	}
-	return nil 
+	return nil
 }
-

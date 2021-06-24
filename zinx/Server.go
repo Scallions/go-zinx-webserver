@@ -1,45 +1,41 @@
 package main
-
 import (
-	"fmt"
-
-	"./ziface"
-	"./znet"
+    "fmt"
+    "./ziface"
+    "./znet"
 )
-
-
+//ping test 自定义路由
 type PingRouter struct {
     znet.BaseRouter
 }
-
-//Test PreHandle
-func (this *PingRouter) PreHandle(request ziface.IRequest) {
-    fmt.Println("Call Router PreHandle")
-    _, err := request.GetConnection().GetTCPConnection().Write([]byte("before ping ....\n"))
-    if err !=nil {
-        fmt.Println("call back ping ping ping error")
-    }
-}
-//Test Handle
+//Ping Handle
 func (this *PingRouter) Handle(request ziface.IRequest) {
     fmt.Println("Call PingRouter Handle")
-    _, err := request.GetConnection().GetTCPConnection().Write([]byte("ping...ping...ping\n"))
-    if err !=nil {
-        fmt.Println("call back ping ping ping error")
+    //先读取客户端的数据，再回写ping...ping...ping
+    fmt.Println("recv from client : msgId=", request.GetMsgID(), ", data=", string(request.GetData()))
+    err := request.GetConnection().SendMsg(0, []byte("ping...ping...ping"))
+    if err != nil {
+        fmt.Println(err)
     }
 }
-//Test PostHandle
-func (this *PingRouter) PostHandle(request ziface.IRequest) {
-    fmt.Println("Call Router PostHandle")
-    _, err := request.GetConnection().GetTCPConnection().Write([]byte("After ping .....\n"))
-    if err !=nil {
-        fmt.Println("call back ping ping ping error")
+//HelloZinxRouter Handle
+type HelloZinxRouter struct {
+    znet.BaseRouter
+}
+func (this *HelloZinxRouter) Handle(request ziface.IRequest) {
+    fmt.Println("Call HelloZinxRouter Handle")
+    fmt.Println("recv from client : msgId=", request.GetMsgID(), ", data=", string(request.GetData()))
+    err := request.GetConnection().SendMsg(1, []byte("Hello Zinx Router V0.6"))
+    if err != nil {
+        fmt.Println(err)
     }
 }
-func main(){
+func main() {
     //创建一个server句柄
-    s := znet.NewServer("[zinx V0.3]")
-    s.AddRouter(&PingRouter{})
-    //2 开启服务
+    s := znet.NewServer()
+    //配置路由
+    s.AddRouter(0, &PingRouter{})
+    s.AddRouter(1, &HelloZinxRouter{})
+    //开启服务
     s.Serve()
 }
