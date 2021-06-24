@@ -15,7 +15,7 @@ type Server struct {
 	IPVersion string
 	IP        string
 	Port      int
-	Router    ziface.IRouter
+	msgHandler ziface.IMsgHandle
 }
 
 func NewServer() ziface.IServer {
@@ -25,7 +25,7 @@ func NewServer() ziface.IServer {
 		IPVersion: "tcp4",
 		IP:        utils.GlobalObject.Host,
 		Port:      utils.GlobalObject.TcpPort,
-		Router:    nil,
+		msgHandler: NewMsgHandle(),
 	}
 	return s
 }
@@ -60,7 +60,7 @@ func (s *Server) Start() {
 
 			// TODO: 最大连接限制
 
-			dealConn := NewConnection(conn, cid, s.Router)
+			dealConn := NewConnection(conn, cid, s.msgHandler)
 			cid++
 			go dealConn.Start()
 		}
@@ -82,9 +82,8 @@ func (s *Server) Serve() {
 	}
 }
 
-func (s *Server) AddRouter(router ziface.IRouter) {
-	s.Router = router
-	fmt.Println("Add Router succ! ")
+func (s *Server) AddRouter(msgId uint32, router ziface.IRouter) {
+	s.msgHandler.AddRouter(msgId, router)
 }
 
 // ========== 定义 handle api ===============
