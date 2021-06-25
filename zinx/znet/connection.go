@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
 
 	"../utils"
 	"../ziface"
@@ -20,6 +21,10 @@ type Connection struct {
 	msgBuffChan  chan []byte
 
 	TcpServer ziface.IServer
+
+	// prop
+	property     map[string]interface{}
+	propertyLock sync.RWMutex
 }
 
 func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
@@ -33,6 +38,7 @@ func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, msgH
 		msgBuffChan:  make(chan []byte, utils.GlobalObject.MaxMsgChanLen),
 
 		TcpServer: server,
+		property: make(map[string]interface{}),
 	}
 	c.TcpServer.GetConnMgr().Add(c) // TODO: 可移到server里面
 	return c
@@ -102,7 +108,7 @@ func (c *Connection) StartWriter() {
 			if ok {
 				if _, err := c.Conn.Write(data); err != nil {
 					fmt.Println("Send Buff Data error: ", err, " Conn Writer exit")
-					return 
+					return
 				}
 			} else {
 				fmt.Println("msgBuffChan is Closed")
@@ -181,4 +187,29 @@ func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
 	}
 	c.msgBuffChan <- msg
 	return nil
+}
+
+
+func (c *Connection) SetProperty(key string, value interface{}) {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+	c.property[key] = value
+}
+
+func (c *Connection) GetProperty(key string) (interface{}, error) {
+	c.propertyLock.RLock()
+	defer c.propertyLock.RUnlock()
+
+	if value, ok := c.property[key]; ok {
+		return value, nil
+	} else {
+		return nil, errors.New("no property found")
+	}
+}
+
+func (c *Connection) RemoveProperty(key string)  {
+	c.propertyLock.Lock()
+	defer c.propertyLock.Unlock()
+
+	delete(c.property, key)
 }
