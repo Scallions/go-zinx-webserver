@@ -15,6 +15,12 @@ type GolbalObj struct {
 	Version string
 	MaxPacketSize uint32
 	MaxConn int
+
+	// worker pool
+	WorkerPoolSize uint32
+	MaxWorkerTaskLen uint
+
+	ConfFilePath string
 }
 
 var GlobalObject *GolbalObj
@@ -40,6 +46,9 @@ func init() {
 		Host: "0.0.0.0",
 		MaxConn: 12000,
 		MaxPacketSize: 4096,
+		WorkerPoolSize: 10,
+		MaxWorkerTaskLen: 1024,
+		ConfFilePath: "conf/zinx.json",
 	}
 	GlobalObject.Reload()
 }
