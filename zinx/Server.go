@@ -25,7 +25,7 @@ type HelloZinxRouter struct {
 func (this *HelloZinxRouter) Handle(request ziface.IRequest) {
     fmt.Println("Call HelloZinxRouter Handle")
     fmt.Println("recv from client : msgId=", request.GetMsgID(), ", data=", string(request.GetData()))
-    err := request.GetConnection().SendMsg(1, []byte("Hello Zinx Router V0.6"))
+    err := request.GetConnection().SendMsg(1, []byte("Hello Zinx Router V0.10"))
     if err != nil {
         fmt.Println(err)
     }
@@ -33,6 +33,11 @@ func (this *HelloZinxRouter) Handle(request ziface.IRequest) {
 
 func DoConnectionBegin(conn ziface.IConnection) {
     fmt.Println("DoConnectionBegin is Called...")
+
+    // set prop
+    conn.SetProperty("Name", "Aceld")
+    conn.SetProperty("Home", "https://hexo.scallions.cn")
+
     err := conn.SendMsg(2, []byte("DoConnection BEGIN..."))
     if err != nil {
         fmt.Println(err)
@@ -41,6 +46,13 @@ func DoConnectionBegin(conn ziface.IConnection) {
 
 func DoConnectionLost(conn ziface.IConnection) {
     fmt.Println("DoConneciotnLost is Called ... ")
+    // query prop
+    if name, err := conn.GetProperty("Name"); err == nil {
+        fmt.Println("Conn Property Name = ", name)
+    }
+    if home, err := conn.GetProperty("Home"); err == nil {
+        fmt.Println("Conn Property Home = ", home)
+    }
 }
 
 func main() {
