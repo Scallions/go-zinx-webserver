@@ -6,16 +6,17 @@ import (
 	"io"
 	"net"
 
+	"../utils"
 	"../ziface"
 )
 
 type Connection struct {
-	Conn     *net.TCPConn
-	ConnID   uint32
-	isClosed bool
-	msgHandler ziface.IMsgHandle
+	Conn         *net.TCPConn
+	ConnID       uint32
+	isClosed     bool
+	msgHandler   ziface.IMsgHandle
 	ExitBuffChan chan bool
-	msgChan chan []byte
+	msgChan      chan []byte
 }
 
 func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandle) *Connection {
@@ -23,9 +24,9 @@ func NewConnection(conn *net.TCPConn, connID uint32, msgHandler ziface.IMsgHandl
 		Conn:         conn,
 		ConnID:       connID,
 		isClosed:     false,
-		msgHandler: msgHandler,
+		msgHandler:   msgHandler,
 		ExitBuffChan: make(chan bool, 1),
-		msgChan: make(chan []byte),
+		msgChan:      make(chan []byte),
 	}
 	return c
 }
@@ -48,29 +49,34 @@ func (c *Connection) StartReader() {
 		msg, err := dp.Unpack(headData)
 		if err != nil {
 			fmt.Println("unpack error ", err)
-			c.ExitBuffChan <- true 
+			c.ExitBuffChan <- true
 			continue
 		}
 
 		var data []byte
 		if msg.GetDataLen() > 0 {
-			data  = make([]byte, msg.GetDataLen())
+			data = make([]byte, msg.GetDataLen())
 			if _, err := io.ReadFull(c.GetTCPConnection(), data); err != nil {
 				fmt.Println("read msg data error ", err)
-				c.ExitBuffChan <- true 
+				c.ExitBuffChan <- true
 				continue
 			}
 		}
 
 		msg.SetData(data)
-		
+
 		// 处理请求
 		req := Request{
 			conn: c,
-			msg: msg,
+			msg:  msg,
 		}
 
-		go c.msgHandler.DoMsgHandler(&req)
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			c.msgHandler.SendMsgToTaskQueue(&req)
+		} else {
+			go c.msgHandler.DoMsgHandler(&req)
+		}
+
 	}
 }
 
@@ -80,12 +86,12 @@ func (c *Connection) StartWriter() {
 
 	for {
 		select {
-		case data := <- c.msgChan:
+		case data := <-c.msgChan:
 			if _, err := c.Conn.Write(data); err != nil {
 				fmt.Println("Send Data error:, ", err, " Conn Writer exit")
 				return
 			}
-		case <- c.ExitBuffChan:
+		case <-c.ExitBuffChan:
 			return
 		}
 	}
